@@ -2,22 +2,25 @@
 const Mongoose = require('mongoose');
 
 const Joi = require('joi');
-
-const Boom = require('boom');
-const { string } = require('joi');
+const { request } = require('wreck');
 
 //connect to mongodb
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB");
 
+var ObjectId = Mongoose.Types.ObjectId;
+
 const issueModel = Mongoose.model("issues",{
+    id: ObjectId,
     title: String,
-    body: String
+    state: String
 });
 
-const Comment = Mongoose.model('comment',{
-    commenter: String,
-    body: String
+const CommentModel = Mongoose.model('comments',{
+    id: ObjectId,
+    username: String,
+    text: String,
+    issueId: ObjectId
 });
 
 
@@ -30,23 +33,23 @@ exports.configureRoutes = (server) => {
         path: "/issues",
         handler: async(request, h) => {
             var issues = await issueModel.find().exec();
-            return h.response(issues);
+            return h.response(issues); 
         }
     },{
         method:"GET",
-        path: "/issue/{id}",
+        path: "/issues/{id}",
         handler: async(request, h) => {
                 var issue = await issueModel.findById(request.params.id).exec();
                 return h.response(issue);
         } 
     },{
         method: "POST",
-        path: "/issue",
+        path: "/issues",
         options: {
             validate: {
                 payload: Joi.object ({
                    title: Joi.string().min(3).max(30),
-                   body: Joi.string().required()
+                   state: Joi.string().required()
                 })
             }
         },
@@ -57,12 +60,12 @@ exports.configureRoutes = (server) => {
         } 
     },{
         method:"PUT",
-        path: "/issue/{id}",
+        path: "/issues/{id}",
         options:{
             validate: {
                 payload: Joi.object ({
                     title: Joi.string().min(3),
-                    body: Joi.string().required()
+                    state: Joi.string().required()
                 })
             }
         },
@@ -72,11 +75,34 @@ exports.configureRoutes = (server) => {
         } 
     },{
         method:"DELETE",
-        path: "/issue/{id}",
+        path: "/issues/{id}",
         handler: async(request, h) => {
                 var result = await issueModel.findByIdAndDelete(request.params.id);
                 return h.response(result);
         }  
+    },{ // Comments routes
+
+        method:'POST',
+        path: '/comments',
+        handler: async (request, h) => {
+            var comment = new CommentModel(request.payload)
+            var result = await comment.save()
+
+            return h.response(result)
+        }
+    },{
+        method: 'GET',
+        path: '/comments/{issueId?}',
+        handler: async(request, h) => {
+            
+            if(request.params.issueId){
+                var comments = await CommentModel.find(request.params.issueId);
+                
+                return h.response(comments);
+            }
+            var allcomments = await CommentModel.find();
+            return h.response(allcomments);
+        }
     }
     ])
 }
