@@ -1,18 +1,19 @@
 
+const Hapi = require('@hapi/hapi');
 const Mongoose = require('mongoose');
-
 const Joi = require('joi');
-const { request } = require('wreck');
+const wreck = require('wreck');
 
-//connect to mongodb
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB");
+
 
 var ObjectId = Mongoose.Types.ObjectId;
 
 const issueModel = Mongoose.model("issues",{
     id: ObjectId,
     title: String,
+    description: String,
     state: String
 });
 
@@ -49,6 +50,7 @@ exports.configureRoutes = (server) => {
             validate: {
                 payload: Joi.object ({
                    title: Joi.string().min(3).max(30),
+                   description: Joi.string().required(),
                    state: Joi.string().required()
                 })
             }
@@ -65,6 +67,7 @@ exports.configureRoutes = (server) => {
             validate: {
                 payload: Joi.object ({
                     title: Joi.string().min(3),
+                    description: Joi.string().required(),
                     state: Joi.string().required()
                 })
             }
@@ -96,13 +99,28 @@ exports.configureRoutes = (server) => {
         handler: async(request, h) => {
             
             if(request.params.issueId){
-                var comments = await CommentModel.find(request.params.issueId);
+                var comments = await CommentModel.find({issueId: request.params.issueId});
                 
                 return h.response(comments);
             }
             var allcomments = await CommentModel.find();
             return h.response(allcomments);
         }
+    },{
+        method:'POST',
+        path:'/upload',
+        options:{
+            payload: {
+              //maxBytes: 209715200,
+              output: 'stream',
+              parse: true,
+              allow: 'multipart/form-data'
+        }},
+        handler: async(request, h) => {
+            var payload = request.payload
+
+            return payload
+        }
     }
-    ])
-}
+])};
+

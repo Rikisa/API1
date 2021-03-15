@@ -1,5 +1,5 @@
 const Hapi = require('@hapi/hapi');
-const {configureRoutes} = require('./routes')
+const {configureRoutes} = require('./routes');
 
 //start hapi server
 
@@ -21,6 +21,3 @@ const main = async () => {
     console.log(err)
     process.exit(1)
   })
-
-
-
