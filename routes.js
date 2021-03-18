@@ -7,6 +7,7 @@ const walk = require('walk');
 const fs =require('fs');
 const stream = require('stream');
 const inert = require('@hapi/inert');
+const path = require('path');
 
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB", {useNewUrlParser: true, useUnifiedTopology:true });
@@ -112,7 +113,7 @@ exports.configureRoutes = (server) => {
         }
     },{
         method:'POST',
-        path:'/upload',
+        path:'/upload/{id}',
         options:{
             payload: {
               maxBytes: 209715200,
@@ -123,6 +124,34 @@ exports.configureRoutes = (server) => {
               allow: 'multipart/form-data'
         }},
         handler: async(request, h) => {
+            const handleFileUpload = file => {
+            return new Promise((resolve, reject) => {
+                var filename = request.params.id;
+                var filext = path.extname(file.hapi.filename);
+                var data = file._data;
+                var filepath = './upload/';
+
+                if (!fs.existsSync(filepath)) {
+                        fs.mkdirSync(filepath);
+
+                        fs.writeFile('./upload/' + filename + filext, data, err => {
+                            if (err) {
+                            reject(err)
+                            }
+                            resolve({ message: 'Upload successfully!' })
+                        })
+                }
+                else{
+                        fs.writeFile('./upload/' + filename + filext, data, err => {
+                            if (err) {
+                            reject(err)
+                            }
+                            resolve({ message: 'Upload successfully!' })
+                        })
+                }
+            })
+        };
+
             const { payload } = request;
             const response = handleFileUpload(payload.file);
 
@@ -145,22 +174,5 @@ exports.configureRoutes = (server) => {
 
 //Function for upload
 
-const handleFileUpload = file => {
-    return new Promise((resolve, reject) => {
-        var filename = file.hapi.filename;
-        var data = file._data;
-        var path = './upload/';
 
-        if (!fs.existsSync(path)) {
-                fs.mkdirSync(path);
-
-                fs.writeFile('./upload/' + filename, data, err => {
-                    if (err) {
-                    reject(err)
-                    }
-                    resolve({ message: 'Upload successfully!' })
-                })
-        }
-    })
-};
 
