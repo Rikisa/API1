@@ -3,9 +3,13 @@ const Hapi = require('@hapi/hapi');
 const Mongoose = require('mongoose');
 const Joi = require('joi');
 const wreck = require('wreck');
+const walk = require('walk');
+const fs =require('fs');
+const stream = require('stream');
+const inert = require('@hapi/inert');
 
 
-Mongoose.connect("mongodb://localhost:27017/IssueDB");
+Mongoose.connect("mongodb://localhost:27017/IssueDB", {useNewUrlParser: true, useUnifiedTopology:true });
 
 
 var ObjectId = Mongoose.Types.ObjectId;
@@ -111,16 +115,52 @@ exports.configureRoutes = (server) => {
         path:'/upload',
         options:{
             payload: {
-              //maxBytes: 209715200,
-              output: 'stream',
+              maxBytes: 209715200,
+              multipart: {
+                  output: 'stream',
+              },
               parse: true,
               allow: 'multipart/form-data'
         }},
         handler: async(request, h) => {
-            var payload = request.payload
+            const { payload } = request;
+            const response = handleFileUpload(payload.file);
 
-            return payload
+            return response 
+        }
+    },{ //List of all files 
+        method: 'GET',
+        path: '/upload',
+        handler: async(reguest, h) => {
+            const testFolder = './upload/';
+
+            fs.readdir(testFolder, (err, files) => {
+            files.forEach(file => {
+                console.log(file);
+            });
+            });
         }
     }
 ])};
+
+//Function for upload
+
+const handleFileUpload = file => {
+    return new Promise((resolve, reject) => {
+        var filename = file.hapi.filename;
+        var data = file._data;
+        var path = './upload/';
+
+        if (!fs.existsSync(path)) {
+                fs.mkdirSync(path);
+
+                fs.writeFile('./upload/' + filename, data, err => {
+                    if (err) {
+                    reject(err)
+                    }
+                    resolve({ message: 'Upload successfully!' })
+                })
+        }
+    })
+};
 

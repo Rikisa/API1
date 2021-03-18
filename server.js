@@ -11,7 +11,19 @@ const server = new Hapi.server({
 const main = async () => {
     await configureRoutes(server)
     await server.start()
-  
+    await server.register(require('@hapi/inert'));
+
+  // Download file
+  server.route({
+    method: 'GET',
+    path: '/download',
+    handler: (req, res) => {
+        return res.file('./upload/s.jpg', {
+            mode: 'attachment'
+        });
+      }
+    })
+
     return server
   }
   
