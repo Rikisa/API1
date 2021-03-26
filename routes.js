@@ -2,16 +2,18 @@
 const Hapi = require('@hapi/hapi');
 const Mongoose = require('mongoose');
 const Joi = require('joi');
-const wreck = require('wreck');
-const walk = require('walk');
-const fs =require('fs');
-const stream = require('stream');
-const inert = require('@hapi/inert');
-const path = require('path');
+const fs = require('fs');
+const {handleFileUpload} = require('./upload');
+const Boom = require('boom');
+const { request, STATUS_CODES } = require('http');
+const { exist, bool } = require('joi');
+const database = require('mime-db');
+const { boomify } = require('boom');
 
+
+//Database
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB", {useNewUrlParser: true, useUnifiedTopology:true });
-
 
 var ObjectId = Mongoose.Types.ObjectId;
 
@@ -36,17 +38,22 @@ exports.configureRoutes = (server) => {
     //server.route accepts an object of array
     return server.route([{
         method:"GET",
-        path: "/issues",
+        path: "/issues/{id?}",
         handler: async(request, h) => {
-            var issues = await issueModel.find().exec();
-            return h.response(issues); 
-        }
-    },{
-        method:"GET",
-        path: "/issues/{id}",
-        handler: async(request, h) => {
-                var issue = await issueModel.findById(request.params.id).exec();
-                return h.response(issue);
+
+            var id = request.params.id;
+        
+
+            if(id){
+                    var issues = await issueModel.findById(id);
+                    return h.response(issues);  
+            }
+            else{
+                issues = await issueModel.find();
+ 
+                return h.response(issues);
+                
+            }   
         } 
     },{
         method: "POST",
@@ -56,11 +63,12 @@ exports.configureRoutes = (server) => {
                 payload: Joi.object ({
                    title: Joi.string().min(3).max(30),
                    description: Joi.string().required(),
-                   state: Joi.string().required()
+                   state: Joi.string().valid("complete", "pennding").required()
                 })
             }
         },
         handler: async(request, h) => {
+
                 var issue = new issueModel(request.payload);
                 var result = await issue.save();
                 return h.response(result);
@@ -72,46 +80,62 @@ exports.configureRoutes = (server) => {
             validate: {
                 payload: Joi.object ({
                     title: Joi.string().min(3),
-                    description: Joi.string().required(),
-                    state: Joi.string().required()
+                    description: Joi.string(),
+                    state: Joi.string().valid("complete", "pennding").required()
                 })
             }
         },
         handler: async(request, h) => {
-                var result = await issueModel.findByIdAndUpdate(request.params.id,request.payload, {new: true});
-                return h.response(result);
-        } 
+            var id = request.params.id;
+
+            var result = await issueModel.findByIdAndUpdate(id,request.payload, {new: true});
+            return h.response(result);
+        }
     },{
         method:"DELETE",
         path: "/issues/{id}",
         handler: async(request, h) => {
-                var result = await issueModel.findByIdAndDelete(request.params.id);
-                return h.response(result);
+
+                var issues = await issueModel.findByIdAndDelete(request.params.id);
+                var comments = await CommentModel.deleteMany({issueId: request.params.id});
+                
+                return h.response(comments, issues);
         }  
     },{ // Comments routes
 
         method:'POST',
         path: '/comments',
+        options:{
+            validate: {
+                payload: Joi.object ({
+                    username: Joi.string().min(3).max(30),
+                    text: Joi.string().required(),
+                    issueId: Joi.string().required()
+                })
+            }
+        },
         handler: async (request, h) => {
             var comment = new CommentModel(request.payload)
             var result = await comment.save()
 
             return h.response(result)
         }
-    },{
+    },{ 
         method: 'GET',
         path: '/comments/{issueId?}',
         handler: async(request, h) => {
-            
-            if(request.params.issueId){
-                var comments = await CommentModel.find({issueId: request.params.issueId});
-                
-                return h.response(comments);
-            }
-            var allcomments = await CommentModel.find();
-            return h.response(allcomments);
+
+                if(request.params.issueId){
+                    var comments = await CommentModel.find({issueId: request.params.issueId});
+                    
+                    return h.response(comments);
+                }
+                else{
+                    var allcomments = await CommentModel.find();
+                    return h.response(allcomments);  
+                }  
         }
-    },{
+    },{ // Upload files
         method:'POST',
         path:'/upload/{id}',
         options:{
@@ -124,55 +148,53 @@ exports.configureRoutes = (server) => {
               allow: 'multipart/form-data'
         }},
         handler: async(request, h) => {
-            const handleFileUpload = file => {
-            return new Promise((resolve, reject) => {
-                var filename = request.params.id;
-                var filext = path.extname(file.hapi.filename);
-                var data = file._data;
-                var filepath = './upload/';
-
-                if (!fs.existsSync(filepath)) {
-                        fs.mkdirSync(filepath);
-
-                        fs.writeFile('./upload/' + filename + filext, data, err => {
-                            if (err) {
-                            reject(err)
-                            }
-                            resolve({ message: 'Upload successfully!' })
-                        })
-                }
-                else{
-                        fs.writeFile('./upload/' + filename + filext, data, err => {
-                            if (err) {
-                            reject(err)
-                            }
-                            resolve({ message: 'Upload successfully!' })
-                        })
-                }
-            })
-        };
+            
+            var foldername = request.params.id;
+            var uploadfolder = './upload/';
 
             const { payload } = request;
-            const response = handleFileUpload(payload.file);
+            const response = handleFileUpload(payload.file, foldername, uploadfolder);
 
             return response 
         }
     },{ //List of all files 
         method: 'GET',
-        path: '/upload',
-        handler: async(reguest, h) => {
-            const testFolder = './upload/';
+        path: '/upload/{id}',
+        handler: (request, h) => {
+            var issueid = request.params.id;
+            const testFolder = './upload/' + issueid;
+            var list = [];
 
-            fs.readdir(testFolder, (err, files) => {
-            files.forEach(file => {
-                console.log(file);
-            });
-            });
+            if(!fs.existsSync(testFolder)){
+                return Boom.notFound(`Folder doesn't exists`)
+            }
+            else{
+                fs.readdir(testFolder, (err, files) => {
+                    files.forEach(file => {
+                        list.push(file);
+                        console.log(file);
+                    });
+                });
+            
+            //if we don't have timeout list will be empty
+            return new Promise((resolve, rejects) => {
+                    setTimeout(() => {
+                        resolve(h.response(list))
+                    })
+                })
+            }
+
         }
+    },{ //Download files
+        method: 'GET',
+        path: '/download/{id}/{filename}',
+        handler: (request, h) => {
+            var issueid = request.params.id;
+            var filename = request.params.filename;
+
+            return h.file('./upload/'+ issueid + '/' + filename, {
+                mode: 'attachment'
+            });
+      }
     }
 ])};
-
-//Function for upload
-
-
-

@@ -3,7 +3,7 @@ const {configureRoutes} = require('./routes');
 
 //start hapi server
 
-const server = new Hapi.server({
+module.exports = server = new Hapi.server({
     host: "localhost",
     port: 3000
 });
@@ -13,17 +13,6 @@ const main = async () => {
     await server.start()
     await server.register(require('@hapi/inert'));
 
-  // Download file
-  server.route({
-    method: 'GET',
-    path: '/download',
-    handler: (req, res) => {
-        return res.file('./upload/s.jpg', {
-            mode: 'attachment'
-        });
-      }
-    })
-  
     return server
   }
   
