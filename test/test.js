@@ -18,7 +18,7 @@ const Server = require('../server');
 //tests
 describe('Test', () => {
     it('should get issues like array', async () => {
-        //make API cal to self to test functionality end-to-end
+
         const response = await Server.inject({
             method: 'GET',
             url: '/issues'
