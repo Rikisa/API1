@@ -7,11 +7,9 @@ const {handleFileUpload} = require('./upload');
 const Boom = require('boom');
 const {issueModel, CommentModel} =require('./models');
 
-
 //Database
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB", {useNewUrlParser: true, useUnifiedTopology:true });
-
 
 //Routes
 

@@ -2,6 +2,7 @@ const Mongoose = require('mongoose');
 
 var ObjectId = Mongoose.Types.ObjectId;
 
+
 exports.issueModel = Mongoose.model("issues",{
     id: ObjectId,
     title: String,
