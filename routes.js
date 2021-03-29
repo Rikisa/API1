@@ -5,31 +5,12 @@ const Joi = require('joi');
 const fs = require('fs');
 const {handleFileUpload} = require('./upload');
 const Boom = require('boom');
-const { request, STATUS_CODES } = require('http');
-const { exist, bool } = require('joi');
-const database = require('mime-db');
-const { boomify } = require('boom');
+const {issueModel, CommentModel} =require('./models');
 
 
 //Database
 
 Mongoose.connect("mongodb://localhost:27017/IssueDB", {useNewUrlParser: true, useUnifiedTopology:true });
-
-var ObjectId = Mongoose.Types.ObjectId;
-
-const issueModel = Mongoose.model("issues",{
-    id: ObjectId,
-    title: String,
-    description: String,
-    state: String
-});
-
-const CommentModel = Mongoose.model('comments',{
-    id: ObjectId,
-    username: String,
-    text: String,
-    issueId: ObjectId
-});
 
 
 //Routes
@@ -45,8 +26,12 @@ exports.configureRoutes = (server) => {
         
 
             if(id){
-                    var issues = await issueModel.findById(id);
-                    return h.response(issues);  
+                try{
+                   var issues = await issueModel.findById(id);
+                    return h.response(issues); 
+                }catch{
+                    return Boom.notFound(`Issue with that ID doesn't exists`);
+                }
             }
             else{
                 issues = await issueModel.find();
@@ -88,18 +73,30 @@ exports.configureRoutes = (server) => {
         handler: async(request, h) => {
             var id = request.params.id;
 
-            var result = await issueModel.findByIdAndUpdate(id,request.payload, {new: true});
-            return h.response(result);
+            try{
+                var result = await issueModel.findByIdAndUpdate(id,request.payload, {new: true});
+                return h.response(result); 
+            }
+            catch{
+                return Boom.notFound(`Issue with that ID doesn't exists`);
+            }
+
         }
     },{
         method:"DELETE",
         path: "/issues/{id}",
         handler: async(request, h) => {
 
-                var issues = await issueModel.findByIdAndDelete(request.params.id);
+            try{
+               var issues = await issueModel.findByIdAndDelete(request.params.id);
                 var comments = await CommentModel.deleteMany({issueId: request.params.id});
                 
-                return h.response(comments, issues);
+                return h.response(comments, issues); 
+            }
+            catch{
+                return Boom.notFound(`Issue with that ID doesn't exists`);
+            }
+                
         }  
     },{ // Comments routes
 
@@ -126,9 +123,15 @@ exports.configureRoutes = (server) => {
         handler: async(request, h) => {
 
                 if(request.params.issueId){
-                    var comments = await CommentModel.find({issueId: request.params.issueId});
+                    try{
+                        var comments = await CommentModel.find({issueId: request.params.issueId});
                     
-                    return h.response(comments);
+                        return h.response(comments);
+                    }
+                    catch{
+                        return Boom.notFound(`Comment for that ID doesn't exists`);
+                    }
+                    
                 }
                 else{
                     var allcomments = await CommentModel.find();
@@ -152,10 +155,18 @@ exports.configureRoutes = (server) => {
             var foldername = request.params.id;
             var uploadfolder = './upload/';
 
-            const { payload } = request;
-            const response = handleFileUpload(payload.file, foldername, uploadfolder);
+            try{
+                var issues = await issueModel.find({_id: foldername});
+
+                const { payload } = request;
+                const response = handleFileUpload(payload.file, foldername, uploadfolder);
 
             return response 
+            }
+            catch{
+                return Boom.notFound(`Issue with that ID doesn't exists`);
+            }
+            
         }
     },{ //List of all files 
         method: 'GET',
